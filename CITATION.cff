@@ -1,0 +1,86 @@
+cff-version: 1.2.0
+message: "If you use data/software from this repository, please cite both the article from preferred-citation and the repository itself."
+authors:
+- family-names: "Weiß"
+  given-names: "Leon"
+  affiliation: "Ruhr University Bochum"
+  city: "Bochum"
+  country: DE
+  orcid: "https://orcid.org/0009-0005-4540-9058"
+- family-names: "Holl"
+  given-names: "Tobias"
+  affiliation: "Ruhr University Bochum"
+  city: "Bochum"
+  country: DE
+  orcid: "https://orcid.org/0000-0003-3597-6890"
+- family-names: "Borgolte"
+  given-names: "Kevin"
+  affiliation: "Ruhr University Bochum"
+  city: "Bochum"
+  country: DE
+  orcid: "https://orcid.org/0000-0001-7427-7852"
+title: "StorFuzz: FuzzBench Evaluation Environment"
+url: "https://github.com/rub-softsec/StorFuzz"
+repository-code: "https://github.com/rub-softsec/StorFuzz-fuzzbench"
+identifiers:
+- type: swh
+  value: "swh:1:dir:e05b4550cc447cd007d5fa26f75a31946743de7e"
+license: 
+- Apache-2.0
+preferred-citation:
+  authors:
+  - family-names: "Weiß"
+    given-names: "Leon"
+    affiliation: "Ruhr University Bochum"
+    city: "Bochum"
+    country: DE
+    orcid: "https://orcid.org/0009-0005-4540-9058"
+  - family-names: "Holl"
+    given-names: "Tobias"
+    affiliation: "Ruhr University Bochum"
+    city: "Bochum"
+    country: DE
+    orcid: "https://orcid.org/0000-0003-3597-6890"
+  - family-names: "Borgolte"
+    given-names: "Kevin"
+    affiliation: "Ruhr University Bochum"
+    city: "Bochum"
+    country: DE
+    orcid: "https://orcid.org/0000-0001-7427-7852"
+  title: "StorFuzz: Using Data Diversity to Overcome Fuzzing Plateaus"
+  type: conference-paper
+  doi: 10.1145/3744916.3773179
+  collection-title: "Proceedings of the 48th IEEE/ACM International Conference on Software Engineering (ICSE)"
+  collection-type: "proceedings"
+  conference:
+    name: "48th IEEE/ACM International Conference on Software Engineering (ICSE)"
+    city: "Rio de Janeiro"
+    country: "BR"
+    date-start: "2026-04-12"
+    date-end: "2026-04-18"
+  publisher:
+    name: "Association for Computing Machinery (ACM)/Institute of Electrical and Electronics Engineers (IEEE)"
+  editors-series:
+  - family-names: "Mezini"
+    given-names: "Mira"
+  - family-names: "Zimmermann"
+    given-names: "Thomas"
+references:
+- type: software
+  authors:
+    - family-names: "Metzman"
+      given-names: "Jonathan"
+    - family-names: "Szekeres"
+      given-names: "László"
+    - family-names: "Maurice Romain Simon"
+      given-names: "Laurent"
+    - family-names: "Trevelin Sprabery"
+      given-names: "Read"
+    - family-names: "Arya"
+      given-names: "Abhishek"
+  doi: "10.1145/3468264.3473932"
+  title: 'FuzzBench: An Open Fuzzer Benchmarking Platform and Service'
+  repository-code: "https://github.com/google/fuzzbench/"
+  commit: "2a2ca6ae4c5d171a52b3e20d9b7a72da306fe5b8"
+  scope: "Work in this repository builds upon FuzzBench"
+    
