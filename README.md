@@ -44,6 +44,7 @@ PYTHONPATH=. python experiment/run_experiment.py \
 ```
 
 Note 1: In case you encounter build failures, it might help to reduce the number of concurrent builds (`-cb`).
+Note 2: If you use Docker version 29.0.0 or later, the dispatcher-image needs a rebuild because the version provided in the registry contains an outdated docker client. Simply run `docker build --tag gcr.io/fuzzbench/dispatcher-image:latest .` in `./docker/dispatcher-image/` and try again.
 
 ## Paper Experiments
 

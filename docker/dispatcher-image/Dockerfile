@@ -28,12 +28,9 @@ RUN apt-get update -y && apt-get install -y \
     libgss3 \
     libgl1
 
-# Install docker cli.
-RUN DOCKER_VERSION=18.09.7 && \
-    curl -O https://download.docker.com/linux/static/stable/x86_64/docker-$DOCKER_VERSION.tgz && \
-    tar -xvzf docker-$DOCKER_VERSION.tgz && \
-    mv docker/docker /usr/bin/ && \
-    rm -rf docker docker-$DOCKER_VERSION.tgz
+# Install docker-buildx to be compatible with Docker versions >= 29.0.0  on the host.
+# This installs more stuff than we probably need, but it works
+RUN apt-get install -y docker-buildx
 
 # Install cloud sql proxy.
 RUN curl https://dl.google.com/cloudsql/cloud_sql_proxy.linux.amd64 > \
