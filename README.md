@@ -43,6 +43,8 @@ PYTHONPATH=. python experiment/run_experiment.py \
   -f <fuzzer_name> <fuzzer_name> ...
 ```
 
+Note 1: In case you encounter build failures, it might help to reduce the number of concurrent builds (`-cb`).
+
 ## Paper Experiments
 
 To replicate experiments from the paper we provide the configurations below.
