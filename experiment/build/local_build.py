@@ -73,6 +73,7 @@ def copy_coverage_binaries(benchmark):
     coverage_build_archive_shared_dir_path = os.path.join(
         shared_coverage_binaries_dir, coverage_build_archive)
     command = (
+        'umask 0000; '
         '(cd /out; '
         f'tar -czvf {coverage_build_archive_shared_dir_path} * /src /work)')
     return new_process.execute([

@@ -13,6 +13,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+# Allow host user to delete files created by this (root) container.
+umask 0000
+
 # The runner runs at a higher priority than other processes to ensure that it's
 # able to finish infrastructure tasks regardless of the fuzzing workload.
 export RUNNER_NICENESS="-5"
