@@ -200,6 +200,7 @@ def fuzz(input_corpus, output_corpus, target_binary):
         shutil.rmtree(output_corpus)
         
     out_path = Path(os.environ["OUT"])
+    fuzz_target_name = base_env["FUZZ_TARGET"]
     fast_binary = target_binary + '.fast'
     taint_binary = target_binary + '.taint'
     angora_fuzzer = os.path.join(os.environ['OUT'], 'angora_fuzzer')
