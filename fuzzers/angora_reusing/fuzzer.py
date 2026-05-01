@@ -198,7 +198,8 @@ def fuzz(input_corpus, output_corpus, target_binary):
     # so Angora can create its own structure (angora/queue/, etc.) there.
     if os.path.exists(output_corpus):
         shutil.rmtree(output_corpus)
-
+        
+    out_path = Path(os.environ["OUT"])
     fast_binary = target_binary + '.fast'
     taint_binary = target_binary + '.taint'
     angora_fuzzer = os.path.join(os.environ['OUT'], 'angora_fuzzer')
