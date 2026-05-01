@@ -479,7 +479,7 @@ class LocalDispatcher(BaseDispatcher):
 
     def start(self):
         """Start the experiment on the dispatcher."""
-        container_name = 'dispatcher-container'
+        container_name = f'dispatcher-{self.instance_name}'
         experiment_filestore_path = os.path.abspath(
             self.config['experiment_filestore'])
         filesystem.create_directory(experiment_filestore_path)
