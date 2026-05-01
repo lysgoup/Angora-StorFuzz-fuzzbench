@@ -16,7 +16,7 @@
 import os
 import shutil
 import subprocess
-
+from pathlib import Path
 from fuzzers import utils
 
 ANGORA_BIN = '/angora/bin'
@@ -28,6 +28,38 @@ _ABILIST_SKIP = {
     'libgcc_s.so', 'libstdc++.so', 'libc.so',
     'libm.so', 'libpthread.so', 'libdl.so',
 }
+
+def _get_dry_run_paths():
+    """runner.py와 동일한 규칙으로 dry run 마커/sentinel 경로를 반환한다.
+
+    형식: {EXPERIMENT_FILESTORE}/{EXPERIMENT}/dryrun/dry_run_{opt_in|done}_{TRIAL_ID}
+    """
+    filestore = os.environ.get('EXPERIMENT_FILESTORE', '/tmp')
+    experiment = os.environ.get('EXPERIMENT', 'unknown')
+    trial_id = os.environ.get('TRIAL_ID', 'unknown')
+    dryrun_dir = os.path.join(filestore, experiment, 'dryrun')
+    os.makedirs(dryrun_dir, exist_ok=True)
+    opt_in = os.path.join(dryrun_dir, f'dry_run_opt_in_{trial_id}')
+    sentinel = os.path.join(dryrun_dir, f'dry_run_done_{trial_id}')
+    return opt_in, sentinel
+
+def _watch_angora_dry_run(output_corpus, sentinel_path, stop_event):
+    """Angora의 dry run 완료를 감지하는 백그라운드 스레드.
+
+    Angora는 dry run 완료 후 output_corpus/queue/signal/dryrun_finish 를 생성한다.
+    파일이 감지되면 sentinel을 생성해 runner.py에 알린다.
+    """
+    dryrun_finish = Path(output_corpus) / 'queue' / 'signal' / 'dryrun_finish'
+    print(f'[DRY_RUN] Angora dry run watcher started. '
+          f'Watching: {dryrun_finish}')
+    while not stop_event.is_set():
+        if dryrun_finish.exists():
+            Path(sentinel_path).touch()
+            print(f'[DRY_RUN] Angora dry run complete (dryrun_finish found). '
+                  f'Sentinel created: {sentinel_path}')
+            return
+        stop_event.wait(2)
+    print('[DRY_RUN] Angora dry run watcher stopped (fuzzer exited).')
 
 
 def generate_abilist():
@@ -89,6 +121,7 @@ def build():
     fast_env = base_env.copy()
     fast_env['USE_FAST'] = '1'
     fast_env['FUZZER_LIB'] = '/libfuzzer-harness-fast.a'
+    fast_env["ANGORA_PASS_LOG_DIR"] = str(Path(fast_env["OUT"]))
     print('[build] Building fast binary')
     # Snapshot $OUT before build so we can clean up between the two builds.
     out_before = set(os.listdir(out))
@@ -121,6 +154,7 @@ def build():
     taint_env['FUZZER_LIB'] = '/libfuzzer-harness-taint.a'
     taint_env['ANGORA_TAINT_RULE_LIST'] = abilist
     print('[build] Building taint binary')
+    taint_env["ANGORA_PASS_LOG_DIR"] = str(Path(taint_env["OUT"]))
     # The FuzzBench builder image ships /usr/local/lib/libc++.a which conflicts
     # with Angora's DFSan-instrumented libc++abitrack.a. Temporarily hide the
     # system libc++ so the linker uses only Angora's track version.
@@ -168,19 +202,57 @@ def fuzz(input_corpus, output_corpus, target_binary):
     fast_binary = target_binary + '.fast'
     taint_binary = target_binary + '.taint'
     angora_fuzzer = os.path.join(os.environ['OUT'], 'angora_fuzzer')
+    # logs_dir = os.path.join(os.environ['EXPERIMENT_FILESTORE'], os.environ['EXPERIMENT'], 'logs')
+    filestore = os.environ.get('EXPERIMENT_FILESTORE', '/tmp')
+    experiment = os.environ.get('EXPERIMENT', 'unknown')
+    fuzzer_name = os.environ.get('FUZZER', 'unknown')
+    logs_dir = Path(filestore) / experiment / 'logs'
 
+    os.makedirs(logs_dir, exist_ok=True)
+
+    shutil.copy(str(out_path / "cmpid_log_fast.json"), str(logs_dir / f"{fuzz_target_name}_{fuzzer_name}_cmpid_log_fast.json"))
+    shutil.copy(str(out_path / "cmpid_log_track.json"), str(logs_dir / f"{fuzz_target_name}_{fuzzer_name}_cmpid_log_track.json"))
+
+    # config.yaml 옵션 읽기
+    only_dryrun = os.environ.get('ONLY_DRYRUN', 'false').lower() == 'true'
+    analysis_mode = os.environ.get('ANALYSIS_MODE', 'false').lower() == 'true'
+    print(f"[DEBUG] Config: ONLY_DRYRUN={only_dryrun}, ANALYSIS_MODE={analysis_mode}")
+
+    # Dry run opt-in: runner.py에 dry run이 있음을 알림
+    dry_run_opt_in_path, dry_run_sentinel_path = _get_dry_run_paths()
+    Path(dry_run_opt_in_path).touch()
+    print(f'[DRY_RUN] Angora dry run opt-in marker created: {dry_run_opt_in_path}')
+
+    # Dry run 완료 감지 watcher 시작 (dryrun_finish 파일 감시)
+    watcher_stop = threading.Event()
+    watcher = threading.Thread(
+        target=_watch_angora_dry_run,
+        args=(str(output_corpus), dry_run_sentinel_path, watcher_stop),
+        daemon=True,
+    )
+    watcher.start()
+    
+    fuzzer_cmd = [
+        "fuzzer",
+        f"-i={input_corpus}",
+        f"-o={output_corpus}",
+        f"-t={angora_track_path}",
+    ]
+    if only_dryrun:
+        fuzzer_cmd.append("--only-dryrun")
+    if analysis_mode:
+        fuzzer_cmd.append("--analysis-mode")
+    fuzzer_cmd += ["--", str(fast_binary), "@@"]
     # Disable CPU binding — Docker containers do not support affinity syscalls.
     env = os.environ.copy()
     env['ANGORA_DISABLE_CPU_BINDING'] = '1'
 
-    cmd = [
-        angora_fuzzer,
-        '-i', input_corpus,
-        '-o', output_corpus,
-        '-t', taint_binary,
-        '--',
-        fast_binary,
-        '@@',
-    ]
-    print(f'[fuzz] Running: {" ".join(cmd)}')
-    subprocess.check_call(cmd, env=env)
+    print(f'[fuzz] Running: {" ".join(fuzzer_cmd)}')
+    angora_proc = subprocess.Popen(fuzzer_cmd)
+    try:
+        angora_proc.wait()
+    except KeyboardInterrupt:
+        angora_proc.wait()
+    finally:
+        watcher_stop.set()
+        watcher.join(timeout=5)

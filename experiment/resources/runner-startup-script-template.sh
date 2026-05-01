@@ -36,7 +36,7 @@ done{% endif %}
 
 docker run \
 --privileged --cpus={{num_cpu_cores}} --rm \
-{% if cpuset %}--cpuset-cpus={{cpuset}} {% endif %}\
+{% if cpuset %}--cpuset-cpus={{cpuset}} {% endif %} \
 -e INSTANCE_NAME={{instance_name}} \
 -e FUZZER={{fuzzer}} \
 -e BENCHMARK={{benchmark}} \
@@ -56,8 +56,13 @@ docker run \
 -e FUZZ_TARGET={{fuzz_target}} \
 -e PRIVATE={{private}} \
 -e LOCAL_EXPERIMENT={{local_experiment}} \
+{% if max_cycles %}-e MAX_CYCLES={{max_cycles}} {% endif %}\
+-e ONLY_DRYRUN={{only_dryrun}} \
+-e ANALYSIS_MODE={{analysis_mode}} \
+-e DETERMINISTIC_SEED={{deterministic_seed}} \
 {% if not local_experiment %}--name=runner-container {% endif %}\
 --shm-size=2g \
+--ulimit core=0 \
 --cap-add SYS_NICE --cap-add SYS_PTRACE \
 --security-opt seccomp=unconfined \
 {{docker_image_url}} 2>&1 | tee /tmp/runner-log-{{trial_id}}.txt

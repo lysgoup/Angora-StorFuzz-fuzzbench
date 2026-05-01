@@ -22,3 +22,18 @@ report_filestore: /tmp/report_data
 
 # Flag that indicates this is a local experiment.
 local_experiment: true
+
+### custom parameters for angora ###
+
+# The number of fuzzing cycles for each trial(900s).
+# 1day = 24 * 60 * 60 / 900 = 96
+max_cycles: 48
+
+# true & false
+only_dryrun: false
+
+# true & false
+analysis_mode: true
+
+# true & false
+deterministic_seed: true
