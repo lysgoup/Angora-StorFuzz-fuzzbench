@@ -16,6 +16,7 @@
 import os
 import shutil
 import subprocess
+import threading
 from pathlib import Path
 from fuzzers import utils
 
@@ -212,8 +213,8 @@ def fuzz(input_corpus, output_corpus, target_binary):
 
     os.makedirs(logs_dir, exist_ok=True)
 
-    shutil.copy(str(out_path / "cmpid_log_fast.json"), str(logs_dir / f"{fuzz_target_name}_{fuzzer_name}_cmpid_log_fast.json"))
-    shutil.copy(str(out_path / "cmpid_log_track.json"), str(logs_dir / f"{fuzz_target_name}_{fuzzer_name}_cmpid_log_track.json"))
+    # shutil.copy(str(out_path / "cmpid_log_fast.json"), str(logs_dir / f"{fuzz_target_name}_{fuzzer_name}_cmpid_log_fast.json"))
+    # shutil.copy(str(out_path / "cmpid_log_track.json"), str(logs_dir / f"{fuzz_target_name}_{fuzzer_name}_cmpid_log_track.json"))
 
     # config.yaml 옵션 읽기
     only_dryrun = os.environ.get('ONLY_DRYRUN', 'false').lower() == 'true'
@@ -235,10 +236,10 @@ def fuzz(input_corpus, output_corpus, target_binary):
     watcher.start()
     
     fuzzer_cmd = [
-        "fuzzer",
+        angora_fuzzer,
         f"-i={input_corpus}",
         f"-o={output_corpus}",
-        f"-t={angora_track_path}",
+        f"-t={taint_binary}",
     ]
     if only_dryrun:
         fuzzer_cmd.append("--only-dryrun")
@@ -250,7 +251,7 @@ def fuzz(input_corpus, output_corpus, target_binary):
     env['ANGORA_DISABLE_CPU_BINDING'] = '1'
 
     print(f'[fuzz] Running: {" ".join(fuzzer_cmd)}')
-    angora_proc = subprocess.Popen(fuzzer_cmd)
+    angora_proc = subprocess.Popen(fuzzer_cmd, env=env)
     try:
         angora_proc.wait()
     except KeyboardInterrupt:
