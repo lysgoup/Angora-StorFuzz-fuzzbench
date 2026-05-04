@@ -43,6 +43,10 @@ RUN git clone https://github.com/rub-SoftSec/StorFuzz-LibAFL.git /StorFuzz && \
     cd /StorFuzz && \
     git checkout dd13ddb23a946aedc197abe0e451eeed012028f5
 
+# KMG : Add patch dryrun support
+COPY storfuzz_dryrun.patch /
+RUN cd /StorFuzz && git apply /storfuzz_dryrun.patch
+
 RUN cd /StorFuzz/fuzzers/storfuzz_fuzzbench_in_process && \
     unset CFLAGS CXXFLAGS && \
     export LIBAFL_EDGES_MAP_SIZE_MAX=4194304 && \

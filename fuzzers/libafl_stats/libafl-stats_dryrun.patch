@@ -1,0 +1,24 @@
+diff --git a/fuzzers/fuzzbench/src/lib.rs b/fuzzers/fuzzbench/src/lib.rs
+index c1389c4a..df36658c 100644
+--- a/fuzzers/fuzzbench/src/lib.rs
++++ b/fuzzers/fuzzbench/src/lib.rs
+@@ -281,7 +281,7 @@ fn fuzz(
+             // RNG
+             StdRand::new(),
+             // Corpus that will be evolved, we keep it in memory for performance
+-            InMemoryOnDiskCorpus::new(corpus_dir).unwrap(),
++            InMemoryOnDiskCorpus::new(&corpus_dir).unwrap(),
+             // Corpus in which we store solutions (crashes in this example),
+             // on disk so the user can get them after stopping the fuzzer
+             OnDiskCorpus::new(objective_dir).unwrap(),
+@@ -388,6 +388,10 @@ fn fuzz(
+         println!("We imported {} inputs from disk.", state.corpus().count());
+     }
+ 
++    let signal_dir = corpus_dir.join("signal");
++    std::fs::create_dir_all(&signal_dir).unwrap();
++    std::fs::File::create(signal_dir.join("dryrun_finish")).unwrap();
++
+     // Remove target output (logs still survive)
+     #[cfg(unix)]
+     {

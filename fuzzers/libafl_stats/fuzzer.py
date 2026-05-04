@@ -16,9 +16,43 @@
 
 import os
 import subprocess
+import threading
 
+from pathlib import Path
 from fuzzers import utils
 from fuzzers.storfuzz.fuzzer import get_stats as libafl_get_stats
+
+def _get_dry_run_paths():
+    """runner.py와 동일한 규칙으로 dry run 마커/sentinel 경로를 반환한다.
+
+    형식: {EXPERIMENT_FILESTORE}/{EXPERIMENT}/dryrun/dry_run_{opt_in|done}_{TRIAL_ID}
+    """
+    filestore = os.environ.get('EXPERIMENT_FILESTORE', '/tmp')
+    experiment = os.environ.get('EXPERIMENT', 'unknown')
+    trial_id = os.environ.get('TRIAL_ID', 'unknown')
+    dryrun_dir = os.path.join(filestore, experiment, 'dryrun')
+    os.makedirs(dryrun_dir, exist_ok=True)
+    opt_in = os.path.join(dryrun_dir, f'dry_run_opt_in_{trial_id}')
+    sentinel = os.path.join(dryrun_dir, f'dry_run_done_{trial_id}')
+    return opt_in, sentinel
+
+def _watch_libafl_dry_run(output_corpus, sentinel_path, stop_event):
+    """LibAFL의 dry run 완료를 감지하는 백그라운드 스레드.
+
+    LibAFL는 dry run 완료 후 output_corpus/queue/signal/dryrun_finish 를 생성한다.
+    파일이 감지되면 sentinel을 생성해 runner.py에 알린다.
+    """
+    dryrun_finish = Path(output_corpus) / 'queue' / 'signal' / 'dryrun_finish'
+    print(f'[DRY_RUN] LibAFL dry run watcher started. '
+          f'Watching: {dryrun_finish}')
+    while not stop_event.is_set():
+        if dryrun_finish.exists():
+            Path(sentinel_path).touch()
+            print(f'[DRY_RUN] LibAFL dry run complete (dryrun_finish found). '
+                  f'Sentinel created: {sentinel_path}')
+            return
+        stop_event.wait(2)
+    print('[DRY_RUN] LibAFL dry run watcher stopped (fuzzer exited).')
 
 def prepare_fuzz_environment(input_corpus):
     """Prepare to fuzz with a LibAFL-based fuzzer."""
@@ -73,4 +107,23 @@ def fuzz(input_corpus, output_corpus, target_binary):
     fuzzer_env = os.environ.copy()
     fuzzer_env['LD_PRELOAD'] = '/usr/lib/x86_64-linux-gnu/libjemalloc.so.2'
     print(command)
-    subprocess.check_call(command, cwd=os.environ['OUT'], env=fuzzer_env)
+    
+    # Dry run opt-in: runner.py에 dry run이 있음을 알림
+    dry_run_opt_in_path, dry_run_sentinel_path = _get_dry_run_paths()
+    Path(dry_run_opt_in_path).touch()
+    print(f'[DRY_RUN] LibAFL dry run opt-in marker created: {dry_run_opt_in_path}')
+
+    # Dry run 완료 감지 watcher 시작 (dryrun_finish 파일 감시)
+    watcher_stop = threading.Event()
+    watcher = threading.Thread(
+        target=_watch_libafl_dry_run,
+        args=(output_corpus, dry_run_sentinel_path, watcher_stop),
+        daemon=True,
+    )
+    watcher.start()
+
+    try:
+        subprocess.check_call(command, cwd=os.environ['OUT'], env=fuzzer_env)
+    finally:
+        watcher_stop.set()
+        watcher.join(timeout=5)

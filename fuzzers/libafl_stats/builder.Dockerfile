@@ -47,6 +47,9 @@ RUN cd / && \
 COPY fuzzbench_stats.patch /
 RUN cd /libafl-stats && git apply /fuzzbench_stats.patch
 
+COPY libafl-stats_dryrun.patch /
+RUN cd /libafl-stats && git apply /libafl-stats_dryrun.patch
+
 # Compile libafl.
 RUN cd /libafl-stats/fuzzers/fuzzbench && \
     unset CFLAGS CXXFLAGS && \
