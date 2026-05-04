@@ -243,8 +243,6 @@ def run_fuzzer(max_total_time, log_filename):
 
     runner_niceness = environment.get('RUNNER_NICENESS', 0)
 
-    # Set sanitizer options environment variables if this is a bug based
-    # benchmark.
     env = None
     benchmark = environment.get('BENCHMARK')
     if benchmark_config.get_config(benchmark).get('type') == 'bug':
@@ -432,6 +430,7 @@ class TrialRunner:  # pylint: disable=too-many-instance-attributes
         if only_dryrun and has_dry_run:
             logs.info('[ONLY_DRYRUN] Skipping main fuzzing cycle loop. '
                       'Waiting for fuzzer to exit.')
+            _fuzzing_stop_event.set()
         else:
             # ── 메인 fuzzing sync 루프 (cycle 1, 2, ...) ─────────────────────
             fuzzing_cycles = 0
