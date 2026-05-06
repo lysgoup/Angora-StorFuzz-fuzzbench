@@ -426,6 +426,8 @@ def build():
     for item in os.listdir(out):
         if item == fuzz_target + '.fast':
             continue
+        if item == "cmpid_fast.txt":
+            continue
         if item not in out_before:
             item_path = os.path.join(out, item)
             if os.path.isdir(item_path):
@@ -501,8 +503,8 @@ def fuzz(input_corpus, output_corpus, target_binary):
 
     os.makedirs(logs_dir, exist_ok=True)
 
-    # shutil.copy(str(out_path / "cmpid_log_fast.json"), str(logs_dir / f"{fuzz_target_name}_{fuzzer_name}_cmpid_log_fast.json"))
-    # shutil.copy(str(out_path / "cmpid_log_track.json"), str(logs_dir / f"{fuzz_target_name}_{fuzzer_name}_cmpid_log_track.json"))
+    shutil.copy(str(out_path / "cmpid_fast.txt"), str(logs_dir / f"{fuzz_target_name}_{fuzzer_name}_cmpid_fast.txt"))
+    shutil.copy(str(out_path / "cmpid_track.txt"), str(logs_dir / f"{fuzz_target_name}_{fuzzer_name}_cmpid_track.txt"))
 
     # config.yaml 옵션 읽기
     only_dryrun = os.environ.get('ONLY_DRYRUN', 'false').lower() == 'true'
