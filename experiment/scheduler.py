@@ -830,6 +830,7 @@ def render_startup_script_template(  # pylint: disable=too-many-arguments
         'custom_seed_corpus_dir': experiment_config['custom_seed_corpus_dir'],
         'max_cycles': experiment_config.get('max_cycles'),
         'only_dryrun': experiment_config.get('only_dryrun', False),
+        'saturation_mode': experiment_config.get('saturation_mode', False),
         'analysis_mode': experiment_config.get('analysis_mode', False),
     }
 

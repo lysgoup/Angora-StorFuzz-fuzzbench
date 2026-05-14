@@ -81,6 +81,21 @@ def _get_runner_done_path():
     os.makedirs(dryrun_dir, exist_ok=True)
     return os.path.join(dryrun_dir, f'runner_done_{trial_id}')
 
+def _get_saturation_done_path():
+    """measurer가 saturation(plateau) 감지 시 생성하는 sentinel 파일 경로를 반환한다.
+
+    형식: {experiment_filestore}/{experiment}/saturation/saturation_done_{trial_id}
+
+    measurer가 이 파일을 생성하면 runner가 감지해 fuzzer를 종료한다.
+    """
+    filestore = os.environ.get('EXPERIMENT_FILESTORE', '/tmp')
+    experiment = os.environ.get('EXPERIMENT', 'unknown')
+    trial_id = os.environ.get('TRIAL_ID', 'unknown')
+    saturation_dir = os.path.join(filestore, experiment, 'saturation')
+    os.makedirs(saturation_dir, exist_ok=True)
+    return os.path.join(saturation_dir, f'saturation_done_{trial_id}')
+
+
 FUZZ_TARGET_DIR = os.getenv('OUT', '/out')
 
 CORPUS_ELEMENT_BYTES_LIMIT = 1 * 1024 * 1024
@@ -373,7 +388,9 @@ class TrialRunner:  # pylint: disable=too-many-instance-attributes
         dry_run_opt_in_path, dry_run_sentinel_path = _get_dry_run_paths()
         logs.info('[RUNNER] Dry run paths: opt_in=%s  sentinel=%s',
                   dry_run_opt_in_path, dry_run_sentinel_path)
-        for path in (dry_run_opt_in_path, dry_run_sentinel_path):
+        saturation_done_path = _get_saturation_done_path()
+        for path in (dry_run_opt_in_path, dry_run_sentinel_path,
+                     saturation_done_path):
             if os.path.exists(path):
                 os.remove(path)
 
@@ -387,7 +404,9 @@ class TrialRunner:  # pylint: disable=too-many-instance-attributes
         only_dryrun = bool(environment.get('ONLY_DRYRUN', False))
         if only_dryrun:
             logs.info('[ONLY_DRYRUN] only_dryrun=true: runner will stop after dry run completes.')
-
+        saturation_mode = bool(environment.get('SATURATION_MODE', False))
+        if saturation_mode:
+            logs.info('[SATURATION_MODE] saturation_mode=true: hard deadline=%s cycles, runner will enter saturation phase after 384 cycles.', max_cycles)
         # ── cycle 0: dry run 시작 전 seed 상태 측정 ──────────────────────────
         logs.info('[RUNNER] Doing initial corpus sync (cycle 0, before fuzzer starts).')
         self.do_sync()
@@ -442,10 +461,16 @@ class TrialRunner:  # pylint: disable=too-many-instance-attributes
                 logs.info('[SYNC] Fuzzing cycle %d/%s complete.',
                           fuzzing_cycles,
                           str(max_cycles) if max_cycles is not None else '∞')
-
+                if saturation_mode:
+                    if os.path.exists(saturation_done_path):
+                        logs.info('[SATURATION] Plateau sentinel detected. '
+                                      'Stopping fuzzer.')
+                        _fuzzing_stop_event.set()
+                        break
+                    
                 if max_cycles is not None and fuzzing_cycles >= max_cycles:
                     logs.info('[RUNNER] Reached max_cycles=%d. Stopping fuzzer.',
-                              max_cycles)
+                                max_cycles)
                     _fuzzing_stop_event.set()
                     break
 

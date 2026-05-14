@@ -197,6 +197,8 @@ def read_and_validate_experiment_config(config_filename: str) -> Dict:
             Requirement(False, bool, False, ''),
         'analysis_mode':
             Requirement(False, bool, False, ''),
+        'saturation_mode':
+            Requirement(False, bool, False, ''),
     }
 
     all_params_valid = _validate_config_parameters(config, config_requirements)
@@ -334,6 +336,7 @@ def start_experiment(  # pylint: disable=too-many-arguments
         max_cycles: Optional[int] = None,
         only_dryrun: Optional[bool] = None,
         analysis_mode: Optional[bool] = None,
+        saturation_mode: Optional[bool] = None,
         region_coverage: bool = False,
         custom_seed_corpus_dir: Optional[str] = None):
     """Start a fuzzer benchmarking experiment."""
@@ -373,7 +376,9 @@ def start_experiment(  # pylint: disable=too-many-arguments
         config['only_dryrun'] = only_dryrun
     if analysis_mode is not None:
         config['analysis_mode'] = analysis_mode
-
+    if saturation_mode is not None:
+        config['saturation_mode'] = saturation_mode
+        
     config['custom_seed_corpus_dir'] = custom_seed_corpus_dir
     if config['custom_seed_corpus_dir']:
         validate_custom_seed_corpus(config['custom_seed_corpus_dir'],

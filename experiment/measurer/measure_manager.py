@@ -59,6 +59,29 @@ FAIL_WAIT_SECONDS = 30
 SNAPSHOT_QUEUE_GET_TIMEOUT = 1
 SNAPSHOTS_BATCH_SAVE_SIZE = 100
 MEASUREMENT_LOOP_WAIT = 10
+SATURATION_DONE_COUNT = 96  # 96 사이클(24h) 연속 변화 없음 → saturation 선언
+
+
+def _get_saturation_done_path(trial_id: int) -> str:
+    """measurer가 plateau 감지 시 생성하는 sentinel 파일 경로를 반환한다.
+
+    runner.py의 _get_saturation_done_path()와 동일한 경로를 생성한다.
+    """
+    filestore = os.environ.get('EXPERIMENT_FILESTORE', '/tmp')
+    experiment = os.environ.get('EXPERIMENT', 'unknown')
+    saturation_dir = os.path.join(filestore, experiment, 'saturation')
+    os.makedirs(saturation_dir, exist_ok=True)
+    return os.path.join(saturation_dir, f'saturation_done_{trial_id}')
+
+
+def _query_snapshot_edges_covered(trial_id: int, cycle: int):
+    """DB에서 특정 trial의 특정 cycle snapshot의 edges_covered를 반환한다."""
+    snapshot_time = cycle * experiment_utils.get_snapshot_seconds()
+    with db_utils.session_scope() as session:
+        row = session.query(models.Snapshot.edges_covered).filter(
+            models.Snapshot.trial_id == trial_id,
+            models.Snapshot.time == snapshot_time).first()
+    return row[0] if row else None
 
 
 def exists_in_experiment_filestore(path: pathlib.Path) -> bool:
@@ -78,8 +101,13 @@ def measure_main(experiment_config):
     measurers_cpus = experiment_config['measurers_cpus']
     region_coverage = experiment_config['region_coverage']
     max_cycles = experiment_config.get('max_cycles')
+    saturation_mode = experiment_config.get('saturation_mode', False)
+    # base_cycles은 saturation_mode일 때 측정 loop에서 필요한 최소 사이클 수를 보장 current setup : 4 * 96 cycles(4 days)
+    base_cycles = 4 * 96
     measure_manager_loop(experiment, max_total_time, measurers_cpus,
-                         region_coverage, max_cycles=max_cycles)
+                         region_coverage, max_cycles=max_cycles,
+                         saturation_mode=saturation_mode,
+                         base_cycles=base_cycles)
 
     # Clean up resources.
     gc.collect()
@@ -751,7 +779,10 @@ def consume_snapshots_from_response_queue(
 def measure_manager_inner_loop(experiment: str, max_cycle: int, request_queue,
                                response_queue, queued_snapshots,
                                all_ended: bool = False,
-                               failed_snapshots: set = None):
+                               failed_snapshots: set = None,
+                               saturation_mode: bool = False,
+                               base_cycles: int = None,
+                               saturation_counts: dict = None):
     """Reads from database to determine which snapshots needs measuring. Writes
     measurement tasks to request queue, gets results from response queue, and
     writes measured snapshots to database.  Returns False if there are no more
@@ -796,6 +827,40 @@ def measure_manager_inner_loop(experiment: str, max_cycle: int, request_queue,
     if measured_snapshots:
         db_utils.add_all(measured_snapshots)
 
+    # saturation_mode: plateau 감지 체크
+    if saturation_mode and base_cycles is not None and measured_snapshots:
+        if saturation_counts is None:
+            saturation_counts = {}
+        for snapshot in measured_snapshots:
+            cycle = _time_to_cycle(snapshot.time)
+            if cycle <= base_cycles:
+                continue
+            prev_edges = _query_snapshot_edges_covered(snapshot.trial_id,
+                                                       cycle - 1)
+            if prev_edges is None:
+                continue
+            if snapshot.edges_covered > prev_edges:
+                saturation_counts[snapshot.trial_id] = 0
+                logger.info('[SATURATION] trial=%d cycle=%d coverage increased '
+                            '(%d→%d), stable_count reset.',
+                            snapshot.trial_id, cycle, prev_edges,
+                            snapshot.edges_covered)
+            else:
+                count = saturation_counts.get(snapshot.trial_id, 0) + 1
+                saturation_counts[snapshot.trial_id] = count
+                logger.info('[SATURATION] trial=%d cycle=%d no change '
+                            '(edges=%d), stable_count=%d/%d.',
+                            snapshot.trial_id, cycle, snapshot.edges_covered,
+                            count, SATURATION_DONE_COUNT)
+                if count >= SATURATION_DONE_COUNT:
+                    sentinel_path = _get_saturation_done_path(
+                        snapshot.trial_id)
+                    if not os.path.exists(sentinel_path):
+                        open(sentinel_path, 'w').close()  # noqa: WPS515
+                        logger.info('[SATURATION] trial=%d plateau confirmed '
+                                    '(%d stable cycles). Wrote sentinel: %s',
+                                    snapshot.trial_id,
+                                    SATURATION_DONE_COUNT, sentinel_path)
     return True
 
 
@@ -820,7 +885,9 @@ def measure_manager_loop(experiment: str,
                          max_total_time: int,
                          measurers_cpus=None,
                          region_coverage=False,
-                         max_cycles=None):  # pylint: disable=too-many-locals
+                         max_cycles=None,
+                         saturation_mode=False,
+                         base_cycles=None):  # pylint: disable=too-many-locals
     """Measure manager loop. Creates request and response queues, request
     measurements tasks from workers, retrieve measurement results from response
     queue and writes measured snapshots in database.
@@ -865,11 +932,16 @@ def measure_manager_loop(experiment: str,
         # Tracks snapshots whose corpus archive will never appear (e.g. runner
         # stopped early).  Prevents infinite retry once all trials have ended.
         failed_snapshots = set()
+        # saturation_mode: trial별 연속 stable cycle 카운트
+        saturation_counts = {}
         while True:
             all_ended = scheduler.all_trials_ended(experiment)
             continue_inner_loop = measure_manager_inner_loop(
                 experiment, max_cycle, request_queue, response_queue,
-                queued_snapshots, all_ended, failed_snapshots)
+                queued_snapshots, all_ended, failed_snapshots,
+                saturation_mode=saturation_mode,
+                base_cycles=base_cycles,
+                saturation_counts=saturation_counts)
             if not continue_inner_loop and all_ended:
                 break
             time.sleep(MEASUREMENT_LOOP_WAIT)

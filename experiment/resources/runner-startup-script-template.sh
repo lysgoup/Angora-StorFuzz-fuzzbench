@@ -58,6 +58,7 @@ docker run \
 -e LOCAL_EXPERIMENT={{local_experiment}} \
 {% if max_cycles %}-e MAX_CYCLES={{max_cycles}} {% endif %}\
 -e ONLY_DRYRUN={{only_dryrun}} \
+-e SATURATION_MODE={{saturation_mode}} \
 -e ANALYSIS_MODE={{analysis_mode}} \
 {% if not local_experiment %}--name=runner-container {% endif %}\
 --shm-size=2g \
