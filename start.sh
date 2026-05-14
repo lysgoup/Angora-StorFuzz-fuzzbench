@@ -3,6 +3,23 @@
 set -euo pipefail
 CONFIG_FILE="${1:-Angora-StorFuzz-fuzzbench/config.yaml}"
 
+
+# base-image build
+if [[ "$(docker images -q gcr.io/fuzzbench/base-image 2> /dev/null)" == "" ]]; then
+  echo "[+] Building base-image..."
+  docker build -f docker/base-image/Dockerfile -t gcr.io/fuzzbench/base-image .
+else
+  echo "[+] gcr.io/fuzzbench/base-image already exists. Skipping build."
+fi
+
+# dispatcher-image build
+if [[ "$(docker images -q gcr.io/fuzzbench/dispatcher-image 2> /dev/null)" == "" ]]; then
+  echo "[+] Building dispatcher-image..."
+  docker build -f docker/dispatcher-image/Dockerfile -t gcr.io/fuzzbench/dispatcher-image docker/dispatcher-image
+else
+  echo "[+] gcr.io/fuzzbench/dispatcher-image already exists. Skipping build."
+fi
+
 # ── config.yaml 존재 확인 ──
 if [[ ! -f "$CONFIG_FILE" ]]; then
     echo "[ERROR] config.yaml not found: $CONFIG_FILE"
